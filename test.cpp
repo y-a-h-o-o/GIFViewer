@@ -17,23 +17,17 @@ global_var struct timespec rem, req;
 long drawImage(HWND hwnd, HDC hdc, const WCHAR* path);
 void* threadFunc(void* vargp);
 
-static inline int hsleep(long hsec) {
-    req.tv_sec = (hsec / 100);
-    req.tv_nsec = (hsec % 100) * 10000000;
-
-    return nanosleep(&req, &rem);
-}
-
 void* threadFunc(void* vargp) {
-    long delay, msec = 0;
-    clock_t start, diff;
+    long delay, msec;
+    clock_t endTime, t_start, diff;
     while(RUN) {
-        start = clock();
+        t_start = clock();
         delay = drawImage(WindowHandle, deviceContext, L"Image.gif");
-        diff = clock() - start;
-        msec =  diff * 100 / CLOCKS_PER_SEC;
-        delay = (delay - msec > 0) ? delay - msec: 0;
-        hsleep(delay);
+        diff = clock() - t_start;
+        msec = diff * 1000 / CLOCKS_PER_SEC;
+        delay = (delay - msec >= 0) ? delay - msec: 0;
+        endTime = clock() + (delay * CLOCKS_PER_SEC) / 1000;
+        while(clock() < endTime);
     }
     pthread_exit(NULL);
     return NULL;
@@ -64,7 +58,8 @@ long drawImage(HWND hwnd, HDC hdc, const WCHAR* path) {
     }
     
     img->GetPropertyItem(PropertyTagFrameDelay, tagSize, pTimeDelay);
-    long lPause = ((long*)pTimeDelay->value)[frameIndex];
+    long lPause = ((long*)pTimeDelay->value)[frameIndex] * 10;
+    //printf("Time Delay: %ld\n", lPause);
 
     frameIndex++;
     if(frameIndex >= frameCount) {
