@@ -59,7 +59,6 @@ long drawImage(HWND hwnd, HDC hdc, const WCHAR* path) {
     
     img->GetPropertyItem(PropertyTagFrameDelay, tagSize, pTimeDelay);
     long lPause = ((long*)pTimeDelay->value)[frameIndex] * 10;
-    //printf("Time Delay: %ld\n", lPause);
 
     frameIndex++;
     if(frameIndex >= frameCount) {
