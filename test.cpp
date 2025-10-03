@@ -2,7 +2,9 @@
 #include <windows.h>
 #include <gdiplus.h>
 #include <pthread.h>
-#include <time.h>
+#include <chrono>
+#include <thread>
+#include <math.h>
 
 #define global_var static
 
@@ -14,25 +16,38 @@ global_var HDC deviceContext;
 global_var int RUN = 1;
 global_var struct timespec rem, req;
 
-long drawImage(HWND hwnd, HDC hdc, const WCHAR* path);
-void* threadFunc(void* vargp);
+// Stolen from https://blat-blatnik.github.io/computerBear/making-accurate-sleep-function/ jjj
 
-void* threadFunc(void* vargp) {
-    long delay, msec;
-    clock_t endTime, t_start, diff;
-    while(RUN) {
-        t_start = clock();
-        delay = drawImage(WindowHandle, deviceContext, L"Image.gif");
-        diff = clock() - t_start;
-        msec = diff * 1000 / CLOCKS_PER_SEC;
-        delay = (delay - msec >= 0) ? delay - msec: 0;
-        endTime = clock() + (delay * CLOCKS_PER_SEC) / 1000;
-        while(clock() < endTime);
-    }
-    pthread_exit(NULL);
-    return NULL;
+void precise_sleep(double seconds) {
+	using namespace std; 
+	using namespace std::chrono; 
+
+	static double estimate = 5e-3; 
+	static double mean = 5e-3; 
+	static double m2 = 0; 
+	static int64_t count = 1; 
+
+	while(seconds > estimate) {
+		auto start = high_resolution_clock::now(); 
+		this_thread::sleep_for(milliseconds(1));
+		auto end = high_resolution_clock::now(); 
+
+		double observed = (end - start).count() / 1e9;
+		seconds -= observed; 
+
+		++count; 
+		double delta = observed - mean; 
+		mean += delta / count; 
+		m2 += delta * (observed - mean); 
+		double stddev = sqrt(m2 / (count - 1));
+		estimate = mean + stddev; 
+	}	
+	
+	auto start = high_resolution_clock::now(); 
+	while((high_resolution_clock::now() - start).count() / 1e9 < seconds); 
 }
 
+// Returns the amount of delay In milliseconds. 
 long drawImage(HWND hwnd, HDC hdc, const WCHAR* path) {
     
     Gdiplus::Image* img = new Gdiplus::Image(path);
@@ -97,6 +112,30 @@ long drawImage(HWND hwnd, HDC hdc, const WCHAR* path) {
     free(pTimeDelay);
 
     return lPause;
+}
+
+void* threadFunc(void* vargp) {
+    long delay, msec;
+    clock_t endTime, t_start, diff;
+    while(RUN) {
+        t_start = clock();
+	// We need to delay for this much (in milliseconds)
+        delay = drawImage(WindowHandle, deviceContext, L"Image.gif");
+        diff = clock() - t_start;
+        // # of milliseconds of delay used up by drawing. 
+	msec = diff * 1000 / CLOCKS_PER_SEC;
+	// Sleep for this much so the GIF look smooth. (Milliseconds) 
+        delay = (delay - msec >= 0) ? delay - msec: 0;
+	
+	endTime = clock() + (delay * CLOCKS_PER_SEC) / 1000; 
+	
+	// Use precise sleep out of my tests, this was the most balanced in terms of CPU + Chopiness.
+	// Not perfect; But still good. 
+	double s_delay = (double)(delay) / 1000.0; 
+	precise_sleep(s_delay); 	
+    }
+    pthread_exit(NULL);
+    return NULL;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
