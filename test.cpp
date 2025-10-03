@@ -18,6 +18,9 @@ global_var struct timespec rem, req;
 
 // Stolen from https://blat-blatnik.github.io/computerBear/making-accurate-sleep-function/ jjj
 
+// Also, there isn't a worry about overflowing from count, since it would take 
+// an ABSURD amount of time to overflow (if you added 1 every nanosecond, it takes 292 years to overflow). 
+// I aint running this program for 292 years bubby. 
 void precise_sleep(double seconds) {
 	using namespace std; 
 	using namespace std::chrono; 
